@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  powerplant:
+    build:
+      dockerfile: Dockerfile
+      context: powerplant
+      args:
+        - environment=${ENVIRONMENT}
+    image: powerplant:latest
+    ports:
+      - "8888:8888"
+    environment:
+      - VIRTUAL_HOST=powerplant.localhost
+      - VIRTUAL_PORT=8888
+    env_file:
+      - .env.powerplant
+    depends_on:
+      - redis
+    volumes:
+      - ./powerplant/app:/local
+    command: bash -c "gunicorn uservice.wsgi --workers 1 -b 0.0.0.0:8888 --reload"
+    networks:
+      - powerplant-network
+
+  redis-server:
+    image: redis:5.0.4
+    expose:
+      - "6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - ./certs:/certs
+    networks:
+      - powerplant-network
+
+  redis:
+    depends_on:
+      - redis-server
+    image: redis:5.0.4
+    volumes:
+      - ./certs/rediscert.pem:/stunnel/private.pem:ro
+    expose:
+      - "6379"
+    environment:
+      - REDIS_PORT_6379_TCP_ADDR=redis-server
+      - REDIS_PORT_6379_TCP_PORT=6379
+
+
+networks:
+  powerplant-network:
+    name: powerplant-network
